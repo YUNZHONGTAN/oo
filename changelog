@@ -1,3 +1,13 @@
+v0.0.9
+------
+
+* Supports fish shell (env.fish)
+
+v0.0.8
+------
+
+* Add PREBUILT_PKG_URL_PATTERN to specific a custom mirror url to download prebuilt golang package.
+
 v0.0.7
 ------
 

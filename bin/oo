@@ -23,6 +23,7 @@ fi
 
 #PREBUILT_PKG_URL_PATTERN='https://dl.google.com/go/go%s.%s-amd64.tar.gz'
 PREBUILT_PKG_URL_PATTERN='https://mirrors.ustc.edu.cn/golang/go%s.%s-amd64.tar.gz'
+#PREBUILT_PKG_URL_PATTERN=${PREBUILT_PKG_URL_PATTERN-https://dl.google.com/go/go%s.%s-arm64.tar.gz}
 
 #
 # Global Vars
@@ -42,18 +43,18 @@ show_help() {
 Usage: oo [COMMAND]
 
 Commands:
-  oo                         Output current go version
-  oo ls                      Output versions installed
-  oo <version>               Use go <version>
-  oo use <version>           Use go <version>
-  oo get <version>           Get go <version>
-  oo rm <version>            Remove the given version
-  oo as <version>            Run go from oo on a specific version
-  oo dir [<version>]         Show go directory by version
-  oo bin [<version>]         Show go binary path by version
-  oo build <version>         Build go by version
-  oo env                     Output current go env
-  oo upgrade                 Upgrade oo to latest version
+  oo                                Output current go version
+  oo ls                             Output versions installed
+  oo <version>                      Use go <version>
+  oo use <version>                  Use go <version>
+  oo get <version> [--use_prebuilt] Get go <version>
+  oo rm <version>                   Remove the given version
+  oo as <version>                   Run go from oo on a specific version
+  oo dir [<version>]                Show go directory by version
+  oo bin [<version>]                Show go binary path by version
+  oo build <version>                Build go by version
+  oo env                            Output current go env
+  oo upgrade                        Upgrade oo to latest version
 
 Options:
   -v, --version              Output oo's version
@@ -65,6 +66,11 @@ Environment Variables:
   OO_BUILD_CMD               Command to build go from source, default: ./make.bash
   OO_BOOTSTRAP_VERSION       Bootstrap go version to compile the target version,
                              default: the latest installed version
+
+  PREBUILT_PKG_URL_PATTERN   Url pattern to download pre-built go package
+                             default: https://dl.google.com/go/go%s.%s-amd64.tar.gz
+                             The first parameter here is version, the second is platform.
+                             Use https://dl.google.com/go/go%s.%s-arm64.tar.gz for arm64 platforms (e.g. Mac M1).
 
 Version: ${VERSION}
 EOF
@@ -88,7 +94,7 @@ abort() {
 #
 current() {
     if [ -f ${GOROOT_DIR}/VERSION ]; then
-        printf '%s\n' $(cat ${GOROOT_DIR}/VERSION)
+        printf '%s\n' $(head -1 ${GOROOT_DIR}/VERSION)
     else
         abort 'go? (no version installed)'
     fi
@@ -100,12 +106,12 @@ current() {
 list() {
     test ! -f ${GOROOT_DIR}/VERSION && abort 'no version installed'
 
-    current_version=$(cat ${GOROOT_DIR}/VERSION)
+    current_version=$(head -1 ${GOROOT_DIR}/VERSION)
     for file in ${VERSIONS_DIR}/*
     do
         if [ -d ${file} ]; then
             version_listing=$(basename ${file})
-            if [ ${current_version} = $(printf "go%s" ${version_listing}) ]; then
+            if [ ${current_version} = $(printf "go%s" "${version_listing}") ]; then
                 printf "=> %s\n" ${version_listing}
             else
                 printf "   %s\n" ${version_listing}
@@ -119,7 +125,8 @@ list() {
 #
 use() {
     test -z $1 && show_help
-    target_dir=${VERSIONS_DIR}/$1
+    version=$1
+    target_dir=${VERSIONS_DIR}/${version}
     test -d ${target_dir} || abort 'not installed'
     # create soft link
     test -f ${GOROOT_DIR} && rm ${GOROOT_DIR}
@@ -200,6 +207,12 @@ get() {
 
     if [ ${?} != 0 ]; then
         rm -rf ${target_dir} && abort 'fetch tarball failed, maybe bad version'
+    fi
+
+    # The go/VERSION file is missing in version go1.18beta1 (download from github). let's create.
+    if [ ! -f ${target_dir}/VERSION ]; then
+        printf 'file go/VERSION not found, creating..\n'
+        printf 'go%s' "${version}" | xargs > ${target_dir}/VERSION
     fi
 
     if [ "$use_prebuilt" = false ]; then
